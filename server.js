@@ -25,6 +25,10 @@ import  {onUpdateRouter} from "./routes/on_update.js";
 import { initRouter } from "./routes/init.js";
 import { cancelRouter } from './routes/cancel.js';
 import { onCancelRouter } from './routes/on_cancel.js';
+import { OrderStatus } from './constants.js'; // Import constants if needed elsewhere
+import { statusRouter } from './routes/status.js';
+import { onStatusRouter } from './routes/on_status.js';
+
 
 // import { generateAuthHeader } from "./auth/auth";
 dotenv.config();
@@ -614,15 +618,9 @@ app.post("/ondc/on_search", async (req, res) => {
     return res.status(500).json({ error: "An error occurred" });
   }
 });
-
+/*
 //confirm starts here
 
-//import express from 'express'; // Use import
-// import bodyParser from 'body-parser'; // body-parser is built-in now
-
-//const app = express();
-
-// Use express built-in JSON parser instead of body-parser
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -664,11 +662,8 @@ app.listen(PORT, () => {
 });
 //on_confirm starts here 
 
-//import express from 'express'; // Use import
-// import bodyParser from 'body-parser'; // Use express.json() instead
 
-
-app.use(express.json()); // Use express built-in JSON parser
+app.use(express.json()); 
 
 app.use((req, res, next) => {
     const start = Date.now();
@@ -698,7 +693,6 @@ app.use((err, req, res, next) => {
     });
 });
 
-//const PORT = process.env.BAP_PORT || 5001;
 app.listen(PORT, () => {
   console.log(`BAP Buyer server listening on port ${PORT}`);
   console.log(`BAP_ID: ${process.env.BAP_ID}`);
@@ -718,9 +712,8 @@ app.post("/ondc/cart", async (req, res) => {
       return res.status(400).json({ error: "No items selected" });
     }
 
-    // Assuming you want to add ALL selected items to the cart
     const opencartCartAddPromises = selectedItems.map(async (item) => {
-      const opencartProductId = item.id; // Assuming item.id is the OpenCart product ID
+      const opencartProductId = item.id; 
       const quantity = item.quantity.count;
 
       if (!opencartProductId || !quantity || quantity <= 0) {
@@ -731,25 +724,24 @@ app.post("/ondc/cart", async (req, res) => {
         const opencartResponse = await axios.post(
           `${process.env.OPENCART_SITE}/index.php?route=api/cart/add&api_id=0002a312d4f4776b937c8652db`, // Use session for api_id
           new URLSearchParams({
-            // Use URLSearchParams for form-data
             product_id: opencartProductId,
             quantity: quantity,
           }),
           {
             headers: {
-              "Content-Type": "application/x-www-form-urlencoded", // Important!
+              "Content-Type": "application/x-www-form-urlencoded",
             },
           }
         );
 
         if (opencartResponse.data.error) {
-          return { error: opencartResponse.data.error }; // Return OpenCart error
+          return { error: opencartResponse.data.error }; 
         }
 
-        return opencartResponse.data; // Return success data
+        return opencartResponse.data; 
       } catch (error) {
         console.error("Error adding to cart:", error);
-        return { error: "Error adding to cart" }; // Return a general error
+        return { error: "Error adding to cart" }; 
       }
     });
 
@@ -967,10 +959,6 @@ app.post("/ondc/on_init", async (req, res) => {
 
 //cancel starts here
 
-//import 'dotenv/config';
-
-//const app = express();
-
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -1012,10 +1000,6 @@ app.listen(PORT, () => {
 });
 
 //on_cancel starts here
-//import 'dotenv/config';
-//import express from 'express';
-
-//const app = express();
 
 app.use(express.json());
 
@@ -1057,8 +1041,92 @@ console.log(`BAP_URI: ${process.env.BAP_URI}`);
  }
 });
 //on_cancel ends here
+*/
+
+//status starts here
+app.use(express.json());
+
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        console.log(`[HTTP] ${req.method} ${req.originalUrl} - Status: ${res.statusCode}, Duration: ${duration}ms`);
+    });
+    next();
+});
+
+app.use("/", statusRouter);
+
+app.get("/health", (req, res) => {
+   res.status(200).json({ status: "UP", timestamp: new Date().toISOString() });
+});
+
+app.use((err, req, res, next) => {
+    console.error("[Unhandled Error]", err);
+    res.status(err.status || 500).json({
+        message: { ack: { status: "NACK" } },
+        error: {
+            type: "CORE-ERROR",
+            code: "50000",
+            message: err.message || "An unexpected internal server error occurred."
+        }
+    });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`BPP Seller server listening on port ${PORT}`);
+  console.log(`BPP_ID: ${process.env.BPP_ID}`);
+  console.log(`BPP_URI: ${process.env.BPP_URI}`);
+   if (!process.env.BPP_ID || !process.env.BPP_URI || !process.env.STORE_GPS || !process.env.STORE_PINCODE || !process.env.STORE_PHONE) {
+       console.warn("Warning: One or more critical environment variables (BPP_ID, BPP_URI, STORE_GPS, STORE_PINCODE, STORE_PHONE, etc.) are not set!");
+   }
+});
+//status ends here
+
+//on_status starts here
+
+app.use(express.json());
+
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        console.log(`[BAP HTTP] ${req.method} ${req.originalUrl} - Status: ${res.statusCode}, Duration: ${duration}ms`);
+    });
+    next();
+});
+app.use("/", onStatusRouter);
+
+app.get("/bap/health", (req, res) => {
+   res.status(200).json({ status: "UP", timestamp: new Date().toISOString() });
+});
+
+app.use((err, req, res, next) => {
+    console.error("[BAP Unhandled Error]", err);
+    res.status(err.status || 500).json({
+        message: { ack: { status: "NACK" } },
+        error: {
+            type: "CORE-ERROR",
+            code: "50000",
+            message: err.message || "An unexpected internal BAP server error occurred."
+        }
+    });
+});
+
+app.listen(PORT, () => {
+  console.log(`BAP Buyer server listening on port ${PORT}`);
+  console.log(`BAP_ID: ${process.env.BAP_ID}`);
+  console.log(`BAP_URI: ${process.env.BAP_URI}`);
+   if (!process.env.BAP_ID || !process.env.BAP_URI) {
+       console.warn("Warning: BAP_ID or BAP_URI environment variables are not set!");
+   }
+});
+//on_status ends here
 
 //ONDC ENDPOINTS
+//const PORT = 3000;
+
 app.get("/generate-keys", async (req, res) => {
   const keys = await createKeyPair();
   res.json(keys);
